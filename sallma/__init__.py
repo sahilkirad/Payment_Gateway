@@ -1,3 +1,4 @@
+
 """
 Sallma data processing package.
 
@@ -6,3 +7,6 @@ including pipelines for graph transformation.
 """
 
 __version__ = "1.0.0"
+
+# Sallma package initialization
+
