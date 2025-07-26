@@ -1,0 +1,1 @@
+# Sallma package initialization
