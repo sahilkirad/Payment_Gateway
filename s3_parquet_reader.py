@@ -5,7 +5,7 @@ import os
 import time
 from typing import Optional
 from dotenv import load_dotenv
-from sallma.pipelines.graph_transformer import process_dataset_to_graph
+from sallma.pipelines.graph_transformer import process_dataset_to_graph, get_complete_graph_statistics
 
 # Load environment variables from .env file
 load_dotenv()
@@ -63,15 +63,24 @@ def main():
         if dataset:
             logging.info(f"Successfully processed dataset with {dataset.count()} records.")
             
-            # Transform the dataset to graph format
-            logging.info("Starting graph transformation...")
-            graph_dataset = process_dataset_to_graph(dataset)
+            # Transform the entire dataset to graph format and get complete statistics
+            logging.info("Starting complete graph transformation of entire dataset...")
+            graph_statistics = get_complete_graph_statistics(dataset)
             
-            # Log some statistics about the transformed data
-            graph_stats = graph_dataset.take(1)  # Get a sample to check structure
-            if graph_stats:
-                logging.info("Graph transformation completed successfully.")
-                logging.info(f"Sample graph data structure: {type(graph_stats[0])}")
+            # Log comprehensive statistics
+            logging.info("=== GRAPH TRANSFORMATION COMPLETE ===")
+            logging.info(f"Total unique nodes: {graph_statistics['total_unique_nodes']}")
+            logging.info(f"Total unique relationships: {graph_statistics['total_unique_relationships']}")
+            
+            logging.info("Node distribution by type:")
+            for node_type, count in graph_statistics['node_distribution'].items():
+                logging.info(f"  - {node_type}: {count}")
+            
+            logging.info("Relationship distribution by type:")
+            for rel_type, count in graph_statistics['relationship_distribution'].items():
+                logging.info(f"  - {rel_type}: {count}")
+            
+            logging.info("=== END GRAPH STATISTICS ===")
             
             # --- PAUSE SCRIPT HERE TO VIEW DASHBOARD ---
             logging.info("Dashboard should now be available at http://127.0.0.1:8265")

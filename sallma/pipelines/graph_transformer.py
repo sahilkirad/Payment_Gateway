@@ -170,3 +170,67 @@ def process_dataset_to_graph(dataset: ray.data.Dataset) -> ray.data.Dataset:
     except Exception as e:
         logger.error(f"Error processing dataset to graph: {e}")
         raise
+
+
+def get_complete_graph_statistics(dataset: ray.data.Dataset) -> Dict[str, Any]:
+    """
+    Process the entire dataset and return comprehensive graph statistics.
+    
+    Args:
+        dataset: Ray dataset containing Parquet data
+        
+    Returns:
+        Dictionary containing complete graph statistics
+    """
+    try:
+        logger.info("Processing entire dataset for complete graph statistics...")
+        
+        # Transform the dataset
+        graph_dataset = process_dataset_to_graph(dataset)
+        
+        # Collect all nodes and relationships
+        all_nodes = []
+        all_relationships = []
+        
+        # Process all batches
+        for batch_result in graph_dataset.iter_batches():
+            if isinstance(batch_result, dict) and 'nodes' in batch_result and 'relationships' in batch_result:
+                all_nodes.extend(batch_result['nodes'])
+                all_relationships.extend(batch_result['relationships'])
+        
+        # Remove duplicates
+        unique_nodes = {}
+        for node in all_nodes:
+            unique_nodes[node['id']] = node
+        
+        unique_relationships = {}
+        for rel in all_relationships:
+            rel_key = f"{rel['source']}_{rel['type']}_{rel['target']}"
+            unique_relationships[rel_key] = rel
+        
+        # Calculate statistics
+        node_types = {}
+        for node in unique_nodes.values():
+            node_type = node.get('type', 'unknown')
+            node_types[node_type] = node_types.get(node_type, 0) + 1
+        
+        rel_types = {}
+        for rel in unique_relationships.values():
+            rel_type = rel.get('type', 'unknown')
+            rel_types[rel_type] = rel_types.get(rel_type, 0) + 1
+        
+        statistics = {
+            'total_unique_nodes': len(unique_nodes),
+            'total_unique_relationships': len(unique_relationships),
+            'node_distribution': node_types,
+            'relationship_distribution': rel_types,
+            'all_nodes': list(unique_nodes.values()),
+            'all_relationships': list(unique_relationships.values())
+        }
+        
+        logger.info(f"Complete graph statistics calculated: {len(unique_nodes)} nodes, {len(unique_relationships)} relationships")
+        return statistics
+        
+    except Exception as e:
+        logger.error(f"Error calculating complete graph statistics: {e}")
+        raise
