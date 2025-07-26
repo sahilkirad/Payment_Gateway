@@ -1,234 +1,88 @@
-# Ingest data from S3 using Ray
-
 import ray
 import sys
 import logging
 import os
+import time
 from typing import Optional
-from dotenv import load_dotenv # <--- Import the library
+from dotenv import load_dotenv
 
-load_dotenv() # <--- Load variables from .env file
+# Load environment variables from .env file
+load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-
-# The rest of your script follows...
-# Configure logging
+# Configure logging once
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
 def check_aws_credentials() -> bool:
-    """
-    Check if AWS credentials are available.
-    
-    Returns:
-        bool: True if credentials are found, False otherwise
-    """
-    # Check for AWS credentials in environment variables
-    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-    
-    # Check for AWS profile
-    aws_profile = os.getenv('AWS_PROFILE')
-    
-    # Check for AWS credentials file (common location)
+    """Checks if AWS credentials are available from standard sources."""
+    if os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_SECRET_ACCESS_KEY'):
+        logging.info("AWS credentials found in environment variables.")
+        return True
+    if os.getenv('AWS_PROFILE'):
+        logging.info(f"AWS profile '{os.getenv('AWS_PROFILE')}' found in environment.")
+        return True
     aws_credentials_file = os.path.expanduser('~/.aws/credentials')
     aws_config_file = os.path.expanduser('~/.aws/config')
-    
-    if aws_access_key and aws_secret_key:
-        logging.info("AWS credentials found in environment variables")
+    if os.path.exists(aws_credentials_file) or os.path.exists(aws_config_file):
+        logging.info("AWS credentials/config file found.")
         return True
-    elif aws_profile:
-        logging.info(f"AWS profile '{aws_profile}' found in environment")
-        return True
-    elif os.path.exists(aws_credentials_file) or os.path.exists(aws_config_file):
-        logging.info("AWS credentials/config files found")
-        return True
-    else:
-        logging.warning("No AWS credentials found!")
-        logging.warning("Please ensure one of the following:")
-        logging.warning("1. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
-        logging.warning("2. Set AWS_PROFILE environment variable")
-        logging.warning("3. Configure AWS credentials using 'aws configure'")
-        logging.warning("4. Use IAM roles (if running on AWS infrastructure)")
-        return False
+
+    logging.warning("No AWS credentials found!")
+    return False
 
 def read_s3_parquet_data(s3_path: str) -> Optional[ray.data.Dataset]:
-    """
-    Read Parquet data from S3 using Ray.
-    
-    Args:
-        s3_path (str): S3 path to the Parquet files
-        
-    Returns:
-        Optional[ray.data.Dataset]: Ray dataset or None if failed
-    """
-    dataset = None
-    
+    """Reads Parquet data from an S3 path and handles potential errors."""
     try:
-        # Initialize Ray cluster
-        logging.info("Initializing Ray cluster...")
-        ray.init()
-        logging.info("Ray cluster initialized successfully")
-        
-        # Read Parquet data from S3
-        logging.info(f"Reading Parquet data from: {s3_path}")
+        logging.info(f"Attempting to read Parquet data from: {s3_path}")
         dataset = ray.data.read_parquet(s3_path)
-        logging.info("Data read successfully")
-        
-        # Print schema information
-        logging.info("Dataset schema:")
-        print(f"Schema: {dataset.schema()}")
-        
-        # Print first record
-        logging.info("First record:")
-        first_record = dataset.take(1)
-        if first_record:
-            print(f"First record: {first_record[0]}")
-        else:
-            logging.warning("Dataset appears to be empty")
-            
+        logging.info("Data read successfully from S3.")
         return dataset
-        
-    except FileNotFoundError as e:
-        logging.error(f"S3 path not found: {s3_path}. Please check if the bucket and path exist.")
-        logging.error(f"Details: {str(e)}")
-        return None
-        
-    except PermissionError as e:
-        logging.error(f"Permission denied accessing S3 path: {s3_path}")
-        logging.error("Please check your AWS credentials and bucket permissions.")
-        logging.error(f"Details: {str(e)}")
-        return None
-        
-    except ConnectionError as e:
-        logging.error(f"Network connection error while accessing S3: {s3_path}")
-        logging.error("Please check your internet connection and AWS region settings.")
-        logging.error(f"Details: {str(e)}")
-        return None
-        
-    except ValueError as e:
-        logging.error(f"Invalid S3 path format: {s3_path}")
-        logging.error("Please ensure the path follows the format: s3://bucket-name/path")
-        logging.error(f"Details: {str(e)}")
-        return None
-        
     except Exception as e:
-        logging.error(f"Unexpected error occurred: {str(e)}")
-        logging.error("This might be due to:")
-        logging.error("1. Missing or incorrect AWS credentials")
-        logging.error("2. Network connectivity issues")
-        logging.error("3. Incorrect S3 bucket name or path")
-        logging.error("4. Insufficient permissions to access the bucket")
-        logging.error("5. Invalid Parquet file format")
+        logging.error(f"An unexpected error occurred while reading from S3: {e}")
         return None
-        
+
+def main():
+    """Main function to orchestrate the data ingestion process."""
+    logging.info("Starting S3 Parquet data ingestion process.")
+
+    if not check_aws_credentials():
+        logging.error("AWS credentials check failed. Aborting process.")
+        return 1
+
+    s3_path = "s3://sallma"
+
+    try:
+        ray.init()
+        logging.info("Ray cluster initialized successfully.")
+
+        dataset = read_s3_parquet_data(s3_path)
+
+        if dataset:
+            logging.info(f"Successfully processed dataset with {dataset.count()} records.")
+            
+            # --- PAUSE SCRIPT HERE TO VIEW DASHBOARD ---
+            logging.info("Dashboard should now be available at http://127.0.0.1:8265")
+            logging.info("Pausing for 60 seconds... Press Ctrl+C in the terminal to exit early.")
+            time.sleep(60) # This line will pause the script for 60 seconds
+            # ---------------------------------------------
+            
+            logging.info("Pause finished. Continuing...")
+            return 0
+        else:
+            logging.error("Data ingestion failed.")
+            return 1
+
+    except Exception as e:
+        logging.error(f"A critical error occurred in the main process: {e}")
+        return 1
     finally:
-        # Always shutdown Ray cluster
         if ray.is_initialized():
             logging.info("Shutting down Ray cluster...")
             ray.shutdown()
-            logging.info("Ray cluster shut down successfully")
-
-def main():
-    """Main function to execute the S3 Parquet reading process."""
-    # Define S3 path
-    s3_path = "s3://sallma"
-    
-    logging.info("Starting S3 Parquet data ingestion process")
-    
-    # Check AWS credentials first
-    if not check_aws_credentials():
-        logging.error("AWS credentials check failed. Cannot proceed with S3 access.")
-        return 1
-    
-    # Read the data
-    dataset = read_s3_parquet_data(s3_path)
-    
-    if dataset is not None:
-        logging.info("Data ingestion completed successfully")
-        return 0
-    else:
-        logging.error("Data ingestion failed")
-        return 1
+            logging.info("Ray cluster shut down successfully.")
 
 if __name__ == "__main__":
+    os.environ['PYTHONUTF8'] = '1'
     sys.exit(main())
-
-
-import os
-from typing import Optional
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def validate_aws_credentials() -> bool:
-    """Validate that AWS credentials are available."""
-    aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
-    aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-    
-    if not aws_access_key or not aws_secret_key:
-        logger.error("AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.")
-        return False
-    
-    logger.info("AWS credentials validated successfully")
-    return True
-
-def main():
-    """Main function to read Parquet data from S3 using Ray."""
-    try:
-        # Initialize Ray cluster
-        logger.info("Initializing Ray cluster...")
-        if not ray.is_initialized():
-            ray.init()
-        logger.info("Ray cluster initialized successfully")
-        
-        # Validate AWS credentials
-        if not validate_aws_credentials():
-            return
-        
-        # Define S3 path
-        s3_path = "s3://sallma"
-        logger.info(f"Reading Parquet data from: {s3_path}")
-        
-        try:
-            # Read Parquet data from S3
-            dataset = ray.data.read_parquet(s3_path)
-            logger.info(f"Successfully read dataset with {dataset.count()} records")
-            
-            # Display schema
-            logger.info("Dataset schema:")
-            print(dataset.schema())
-            
-            # Display first record
-            logger.info("First record:")
-            first_record = dataset.take(1)
-            if first_record:
-                print(first_record[0])
-            else:
-                logger.warning("No records found in the dataset")
-                
-        except Exception as e:
-            logger.error(f"Error reading data from S3: {e}")
-            return
-        
-    except Exception as e:
-        logger.error(f"Error initializing Ray: {e}")
-        return
-    finally:
-        # Shutdown Ray cluster
-        if ray.is_initialized():
-            logger.info("Shutting down Ray cluster...")
-            ray.shutdown()
-            logger.info("Ray cluster shut down successfully")
-
-if __name__ == "__main__":
-    main()
-
