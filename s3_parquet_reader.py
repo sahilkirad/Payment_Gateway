@@ -5,6 +5,7 @@ import os
 import time
 from typing import Optional
 from dotenv import load_dotenv
+from sallma.pipelines.graph_transformer import process_dataset_to_graph, get_complete_graph_statistics
 
 # Import the graph transformation function
 from sallma.pipelines.graph_transformer import transform_to_graph
@@ -65,6 +66,26 @@ def main():
         if dataset:
             logging.info(f"Successfully processed dataset with {dataset.count()} records.")
             
+
+            # Transform the entire dataset to graph format and get complete statistics
+            logging.info("Starting complete graph transformation of entire dataset...")
+            graph_statistics = get_complete_graph_statistics(dataset)
+            
+            # Log comprehensive statistics
+            logging.info("=== GRAPH TRANSFORMATION COMPLETE ===")
+            logging.info(f"Total unique nodes: {graph_statistics['total_unique_nodes']}")
+            logging.info(f"Total unique relationships: {graph_statistics['total_unique_relationships']}")
+            
+            logging.info("Node distribution by type:")
+            for node_type, count in graph_statistics['node_distribution'].items():
+                logging.info(f"  - {node_type}: {count}")
+            
+            logging.info("Relationship distribution by type:")
+            for rel_type, count in graph_statistics['relationship_distribution'].items():
+                logging.info(f"  - {rel_type}: {count}")
+            
+            logging.info("=== END GRAPH STATISTICS ===")
+
             # Apply graph transformation to the dataset
             logging.info("Starting graph transformation...")
             transformed_dataset = dataset.map_batches(transform_to_graph)
@@ -75,6 +96,7 @@ def main():
             if sample_results:
                 sample = sample_results[0]
                 logging.info(f"Sample transformation result: {sample.get('batch_stats', {})}")
+
             
             # --- PAUSE SCRIPT HERE TO VIEW DASHBOARD ---
             logging.info("Dashboard should now be available at http://127.0.0.1:8265")
