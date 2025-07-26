@@ -5,6 +5,7 @@ import os
 import time
 from typing import Optional
 from dotenv import load_dotenv
+from sallma.pipelines.graph_transformer import process_dataset_to_graph
 
 # Load environment variables from .env file
 load_dotenv()
@@ -61,6 +62,16 @@ def main():
 
         if dataset:
             logging.info(f"Successfully processed dataset with {dataset.count()} records.")
+            
+            # Transform the dataset to graph format
+            logging.info("Starting graph transformation...")
+            graph_dataset = process_dataset_to_graph(dataset)
+            
+            # Log some statistics about the transformed data
+            graph_stats = graph_dataset.take(1)  # Get a sample to check structure
+            if graph_stats:
+                logging.info("Graph transformation completed successfully.")
+                logging.info(f"Sample graph data structure: {type(graph_stats[0])}")
             
             # --- PAUSE SCRIPT HERE TO VIEW DASHBOARD ---
             logging.info("Dashboard should now be available at http://127.0.0.1:8265")
