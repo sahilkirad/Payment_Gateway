@@ -5,7 +5,17 @@ import sys
 import logging
 import os
 from typing import Optional
+from dotenv import load_dotenv # <--- Import the library
 
+load_dotenv() # <--- Load variables from .env file
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+# The rest of your script follows...
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -150,7 +160,7 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 
-import ray
+
 import os
 from typing import Optional
 import logging
