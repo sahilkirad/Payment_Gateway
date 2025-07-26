@@ -1,0 +1,1 @@
+# Sallma pipelines package initialization
