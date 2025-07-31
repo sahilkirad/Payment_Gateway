@@ -1,86 +1,45 @@
+# SALLMA/backend/cognitive/dag_builder.py
+ 
 import ray
 from typing import Dict, Any
- 
-# Example Ray remote definitions for Agents (assuming these are implemented in sallma.agents)
-# Placeholders here for demonstration; actual implementation should be in sallma/agents/*
-@ray.remote
-class FraudAgent:
-    def execute(self, request: Dict) -> Dict:
-        # Fraud detection logic here
-        # For demo returns mock result
-        return {"fraud_check": "pass"}
- 
-@ray.remote
-class ComplianceAgent:
-    def execute(self, request: Dict, fraud_check_result: Dict) -> Dict:
-        # Compliance checks with fraud results considered
-        return {"compliance_check": "pass"}
- 
-@ray.remote
-class SLAAgent:
-    def execute(self, request: Dict, compliance_result: Dict) -> Dict:
-        # SLA validation logic
-        return {"sla_check": "pass"}
- 
-@ray.remote
-class ControllerAgent:
-    def aggregate_results(self, results: Dict[str, Any]) -> Dict:
-        # Final aggregation and decision
-        # For demo, simple logic:
-        if all(v == "pass" for v in results.values()):
-            decision = "Approve"
-        else:
-            decision = "Reject"
-        return {"final_decision": decision, "details": results}
- 
- 
+from SALLMA.backend.lams.compliance_agent import ComplianceAgent
+from SALLMA.backend.agents.fraud_agent import FraudAgent
+from SALLMA.backend.agents.controller_agent import ControllerAgent
+
 def build_dag(intent: str, request: Dict) -> ray.ObjectRef:
-    fraud_agent = FraudAgent.remote()
-    compliance_agent = ComplianceAgent.remote()
-    sla_agent = SLAAgent.remote()
-    controller_agent = ControllerAgent.remote()
-
+    """
+    Dynamically builds and executes a workflow using Ray actors.
+    Agents are created dynamically when the function is called.
+    Returns an ObjectRef that can be passed to ray.get().
+    """
     if intent == "high_value_transaction":
+        # Create agents dynamically
+        fraud_agent = FraudAgent.remote()
+        compliance_agent = ComplianceAgent.remote()
+        controller_agent = ControllerAgent.remote()
+        
+        # Parallel execution: FraudAgent and ComplianceAgent
         fraud_result_ref = fraud_agent.execute.remote(request)
-        fraud_result = ray.get(fraud_result_ref)
-
-        compliance_result_ref = compliance_agent.execute.remote(request, fraud_result)
-        compliance_result = ray.get(compliance_result_ref)
-
-        sla_result_ref = sla_agent.execute.remote(request, compliance_result)
-        sla_result = ray.get(sla_result_ref)
-
-        results = {
-            "fraud_check": fraud_result["fraud_check"],
-            "compliance_check": compliance_result["compliance_check"],
-            "sla_check": sla_result["sla_check"]
-        }
-
-        decision_ref = controller_agent.aggregate_results.remote(results)
-        return decision_ref
-
+        compliance_result_ref = compliance_agent.execute.remote(request)
+        
+        # Wait for both results in parallel
+        fraud_result, compliance_result = ray.get([fraud_result_ref, compliance_result_ref])
+        
+        # Pass both results as separate arguments to controller
+        final_decision_ref = controller_agent.aggregate_results.remote(fraud_result, compliance_result)
+        
     elif intent == "low_value_transaction":
+        # Create agents dynamically
+        fraud_agent = FraudAgent.remote()
+        controller_agent = ControllerAgent.remote()
+        
         fraud_result_ref = fraud_agent.execute.remote(request)
         fraud_result = ray.get(fraud_result_ref)
-
-        results = {
-            "fraud_check": fraud_result["fraud_check"]
-        }
-
-        decision_ref = controller_agent.aggregate_results.remote(results)
-        return decision_ref
-
-    elif intent == "account_query":
-        compliance_result_ref = compliance_agent.execute.remote(request, {})
-        compliance_result = ray.get(compliance_result_ref)
-
-        results = {
-            "compliance_check": compliance_result["compliance_check"]
-        }
-
-        decision_ref = controller_agent.aggregate_results.remote(results)
-        return decision_ref
-
-    else:  # general_request
-        decision_ref = controller_agent.aggregate_results.remote({})
-        return decision_ref
+        final_decision_ref = controller_agent.aggregate_results.remote(fraud_result)
+        
+    else:
+        # Create controller agent dynamically
+        controller_agent = ControllerAgent.remote()
+        final_decision_ref = controller_agent.aggregate_results.remote({"default_check": "PASS"})
+        
+    return final_decision_ref

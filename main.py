@@ -1,63 +1,77 @@
 # main.py
-
 import ray
 from ray import serve
 from fastapi import FastAPI
 import logging
-
-# Import the components from your teammates
-from sallma.cognitive.intent_manager import detect_intent
-from sallma.cognitive.dag_builder import build_dag
-from sallma.audit.audit_logger_actor import AuditLoggerActor
-from sallma.data.schemas import AgentOutput # Assuming you have this for type hints
-
+import time
+import sys
+import os
+ 
+# --- START OF PERMANENT FIX ---
+# This block forces Python to look for the 'SALLMA' package in the correct parent directory.
+# It resolves the ModuleNotFoundError and ensures the correct modules are always loaded.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+# --- END OF PERMANENT FIX ---
+ 
+# Now, the imports will work correctly
+from SALLMA.backend.cognitive.intent_manager import detect_intent
+from SALLMA.backend.cognitive.dag_builder import build_dag
+#from SALLMA.audit.audit_logger_actor import AuditLoggerActor
+#from SALLMA.data.schemas import AgentOutput # Assuming you have this for type hints
+ 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Create a FastAPI app instance
-# Ray Serve will use this to handle HTTP requests
-app = FastAPI()
-
+app = FastAPI(title="SALLMA Processing API")
+ 
 @serve.deployment
 @serve.ingress(app)
 class SALLMA_App:
     def __init__(self):
-        # This is where you would initialize any models or resources
-        # The AuditLoggerActor is started separately, so we just get a handle to it.
-        self.audit_logger = ray.get_actor("AuditLogger", namespace="sallma")
+        # No persistent agents - they will be created dynamically in the workflow
+        print("SALLMA_App initialized - agents will be created dynamically")
 
     @app.post("/process_transaction")
     async def process_transaction(self, request: dict) -> dict:
         """
         This is the main endpoint that receives a request and orchestrates the agent workflow.
         """
-        logging.info(f"Received new request: {request}")
+        try:
+            logging.info(f"Received new request: {request}")
+            print("Request received:", request)
 
-        # 1. Call Arnavi's Cognitive Layer to get a plan
-        intent = detect_intent(request)
-        logging.info(f"Detected intent: {intent}")
-        
-        agent_dag = build_dag(intent, request)
-        logging.info("Successfully built execution DAG.")
+            intent = detect_intent(request)
+            logging.info(f"Detected intent: {intent}")
 
-        # 2. Execute the DAG
-        # The result will be the final output from Deepanshu's Controller Agent
-        final_decision = await agent_dag.execute_async()
-        logging.info(f"Final decision from Controller: {final_decision}")
+            # Build and execute workflow - agents will be created when executed
+            agent_dag = build_dag(intent, request)
+            logging.info("Successfully built execution workflow.")
 
-        # The Controller is responsible for calling the AuditLogger,
-        # so we don't need to do it here. We just return the result.
-        return final_decision
+            # Execute the workflow and get the result
+            final_decision = ray.get(agent_dag)
+            logging.info(f"Final decision from Controller: {final_decision}")
 
-# --- Application Startup Logic ---
+            return final_decision
+            
+        except Exception as e:
+            logging.error(f"Error processing transaction: {str(e)}")
+            return {"error": str(e), "status": "failed"}
+ 
 if __name__ == "__main__":
-    # Initialize Ray
     ray.init(namespace="sallma", ignore_reinit_error=True)
-
-    # Start the persistent AuditLoggerActor
-    # This actor will live for the duration of the Ray cluster.
-    audit_logger = AuditLoggerActor.options(name="AuditLogger", lifetime="detached").remote()
-    
-    # Bind and deploy the Ray Serve application
+    serve.start(http_options={"host": "0.0.0.0", "port": 8000})
+   
     sallma_app = SALLMA_App.bind()
-    serve.run(sallma_app, host="0.0.0.0", port=8000)
+    serve.run(sallma_app)
+   
+    print("\nApplication is running at http://0.0.0.0:8000/docs")
+    print("Press Ctrl+C to shut down.")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        print("\nShutting down the server...")
+        serve.shutdown()
+        
