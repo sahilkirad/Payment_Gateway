@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sallma-ingress
+spec:
+  rules:
+  - host: sallma.example.com
+    http:
+      paths:
+      - path: /api/
+        pathType: Prefix
+        backend:
+          service:
+            name: controller-svc
+            port:
+              number: 80

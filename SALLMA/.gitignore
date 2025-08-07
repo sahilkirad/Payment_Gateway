@@ -1,0 +1,35 @@
+.env
+__pycache__/
+
+
+# Local .terraform directories
+.terraform/
+
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+
+
+# Terraform plan output
+*.tfplan
+
+# Override files (can contain secrets)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+
+# Sensitive .pem files (like key pairs)
+*.pem
+
+# Editor & OS-specific
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.bak
+*.tmp
+
+# Lock file (optional — keep if using Terraform v0.14+ to pin providers)
+terraform.lock.hcl
