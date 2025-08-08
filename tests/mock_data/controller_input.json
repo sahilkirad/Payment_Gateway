@@ -1,0 +1,102 @@
+[
+  {
+    "txn_id": "TXN-001-2024",
+    "status": "SUCCESS",
+    "latency_ms": 250,
+    "sla_id": "SLA-STANDARD-300MS",
+    "risk_flag": false,
+    "kyc_valid": true,
+    "amount": 1500.00,
+    "currency": "USD",
+    "customer_id": "CUST-12345",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "dispatch_metadata": {
+      "agent_id": "AGENT-001",
+      "routing_path": ["gateway", "processor", "settlement"],
+      "retry_count": 0
+    },
+    "final_log_data": {
+      "fallback_used": false
+    }
+  },
+  {
+    "txn_id": "TXN-002-2024",
+    "status": "FAILED",
+    "latency_ms": 450,
+    "sla_id": "SLA-PREMIUM-200MS",
+    "risk_flag": true,
+    "kyc_valid": true,
+    "amount": 5000.00,
+    "currency": "USD",
+    "customer_id": "CUST-67890",
+    "timestamp": "2024-01-15T10:31:00Z",
+    "dispatch_metadata": {
+      "agent_id": "AGENT-002",
+      "routing_path": ["gateway", "processor"],
+      "retry_count": 2
+    },
+    "final_log_data": {
+      "fallback_used": true
+    }
+  },
+  {
+    "txn_id": "TXN-003-2024",
+    "status": "COMPLETED",
+    "latency_ms": 350,
+    "sla_id": "SLA-STANDARD-300MS",
+    "risk_flag": false,
+    "kyc_valid": false,
+    "amount": 750.50,
+    "currency": "EUR",
+    "customer_id": "CUST-11111",
+    "timestamp": "2024-01-15T10:32:00Z",
+    "dispatch_metadata": {
+      "agent_id": "AGENT-001",
+      "routing_path": ["gateway", "processor", "settlement", "notification"],
+      "retry_count": 1
+    },
+    "final_log_data": {
+      "fallback_used": false
+    }
+  },
+  {
+    "txn_id": "TXN-004-2024",
+    "status": "TIMEOUT",
+    "latency_ms": 5000,
+    "sla_id": "SLA-STANDARD-300MS",
+    "risk_flag": false,
+    "kyc_valid": true,
+    "amount": 2500.00,
+    "currency": "USD",
+    "customer_id": "CUST-22222",
+    "timestamp": "2024-01-15T10:33:00Z",
+    "dispatch_metadata": {
+      "agent_id": "AGENT-003",
+      "routing_path": ["gateway"],
+      "retry_count": 3
+    },
+    "final_log_data": {
+      "fallback_used": true
+    }
+  },
+  {
+    "txn_id": "TXN-005-2024",
+    "status": "PENDING",
+    "latency_ms": null,
+    "sla_id": "SLA-BASIC-500MS",
+    "risk_flag": false,
+    "kyc_valid": true,
+    "amount": 100.00,
+    "currency": "GBP",
+    "customer_id": "CUST-33333",
+    "timestamp": "2024-01-15T10:34:00Z",
+    "dispatch_metadata": {
+      "agent_id": "AGENT-004",
+      "routing_path": ["gateway", "processor"],
+      "retry_count": 0
+    },
+    "final_log_data": {
+      "fallback_used": false
+    }
+  }
+]
