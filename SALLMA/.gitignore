@@ -33,5 +33,3 @@ override.tf.json
 
 # Lock file (optional — keep if using Terraform v0.14+ to pin providers)
 terraform.lock.hcl
-
- 

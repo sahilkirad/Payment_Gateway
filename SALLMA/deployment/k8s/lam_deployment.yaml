@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lam-agents
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: lam
+  template:
+    metadata:
+      labels:
+        app: lam
+    spec:
+      containers:
+      - name: lam
+        image: <your-dockerhub>/lam-agent:latest
+        env:
+        - name: RAY_ADDRESS
+          value: "ray://sallma-ray-cluster-head:10001"
