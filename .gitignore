@@ -1,3 +1,11 @@
+# SALLMA/.gitignore
+
+# Environment variables
 .env
-# Ignore security certificates
+
+# Certificates
 ml/agents/ca.crt
+
+# Python cache
+__pycache__/
+*.pyc
