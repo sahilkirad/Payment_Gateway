@@ -5,7 +5,7 @@
 
 # Certificates
 ml/agents/ca.crt
-
+ca.crt
 # Python cache
 __pycache__/
 *.pyc
