@@ -1,1 +1,3 @@
 .env
+# Ignore security certificates
+ml/agents/ca.crt
