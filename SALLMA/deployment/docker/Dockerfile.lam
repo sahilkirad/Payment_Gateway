@@ -1,0 +1,8 @@
+FROM base as builder
+
+WORKDIR /app
+COPY backend/lams/ ./lams/
+COPY backend/configs/ ./configs/
+
+ENV PYTHONPATH="/app"
+CMD ["ray", "start", "--address=auto"]

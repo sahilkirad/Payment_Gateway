@@ -1,0 +1,9 @@
+FROM base as controller
+
+WORKDIR /app
+COPY backend/controller_critic/ ./controller_critic/
+COPY backend/dag_pipeline/ ./dag_pipeline/
+COPY backend/configs/ ./configs/
+
+ENV PYTHONPATH="/app"
+CMD ["python", "controller_critic/controller_agent.py"]

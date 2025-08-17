@@ -46,4 +46,3 @@ python s3_parquet_reader.py
 ## Configuration
 
 The script is configured to read from `s3://sallma`. To change the S3 path, modify the `s3_path` variable in the `main()` function.
-

@@ -1,0 +1,37 @@
+# Minimal example for AWS. You can extend this for EKS or GKE.
+cluster_name: sallma-ray-cluster
+
+provider:
+  type: aws
+  region: us-east-1
+  availability_zone: us-east-1a
+
+auth:
+  ssh_user: ubuntu
+  ssh_private_key: ~/.ssh/your-key.pem
+
+head_node:
+  InstanceType: t3.medium
+  ImageId: ami-0abcdef1234567890
+  KeyName: your-key-name
+
+worker_nodes:
+  InstanceType: t3.medium
+  ImageId: ami-0abcdef1234567890
+  MinCount: 1
+  MaxCount: 4
+
+setup_commands:
+  - pip install ray[default] boto3
+
+file_mounts: {
+  "~/sallma": "./"
+}
+
+head_start_ray_commands:
+  - ray stop
+  - ray start --head --port=6379 --dashboard-host=0.0.0.0
+
+worker_start_ray_commands:
+  - ray stop
+  - ray start --address=$RAY_HEAD_IP:6379
