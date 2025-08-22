@@ -46,7 +46,7 @@ class DagRequest(BaseModel):
 # Define the list of agents
 ALLOWED_AGENTS_LIST = [
     "edge_gateway", "zone_classifier", "routing_planner", "validator", "aml_agent",
-    "kyc_verifier", "sla_guardian", "controller", "dispatch", "fallback_mutator",
+    "kyc_verifier", "sla_guardian", "confidence", "dispatch", "fallback_mutator",
     "ledger_writer", "explainability", "reconciliation", "sla_auditor"
 ]
 
