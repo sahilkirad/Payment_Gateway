@@ -42,14 +42,16 @@ def analyze_and_decide(state: RoutingState) -> dict:
     allowed = state['allowed_agents']
     
     # --- UPDATED: A much more detailed prompt that requests JSON output ---
+    
     prompt = ChatPromptTemplate.from_template(
     """
 You are an orchestration planner for a Payment Routing Gateway. 
 Your task is to produce ONLY a valid JSON object that defines the execution DAG for the given transaction.
+
 ### Allowed agents (use only these names):
 {allowed}
- 
-### Agent Details & Implementation:
+
+### Agent Details & Implementation (All agents take transaction data as input):
 1. edge_gateway - API entry point, normalizes payload into internal txn_master (FastAPI - synchronous)
 2. zone_classifier - Classifies zone/region/rail preference using account/IFSC/routing_hints (LangGraph for dynamic mapping)
 3. confidence_scorer - Continuous scoring based on routing stats and SLA (LangGraph for parallel scoring tools)
@@ -59,48 +61,47 @@ Your task is to produce ONLY a valid JSON object that defines the execution DAG 
 7. aml_agent - Anti-Money Laundering checks against sanction lists (CrewAI for rule + knowledge base reasoning)
 8. kyc_verifier - Validates KYC/KYB records/consent hashes (FastAPI - deterministic API integration)
 9. sla_guardian - Evaluates SLA contract posture and predicts breach risk (LangGraph for predictive rerouting logic)
-10. controller - Aggregates all agent outputs into single execution plan for human approval (LangGraph for decision aggregation)
-11. dispatch - Sends payment to selected rail/bank API (FastAPI - synchronous, idempotent)
-12. fallback_mutator - Constructs next-best route/rail if dispatch fails (LangGraph for dynamic alternative routing)
-13. ledger_writer - Persists system decision context to immutable ledger (Kafka → CockroachDB/S3 - no LLM)
-14. explainability - Generates causality/trace for auditors from ledger + decisions (LangGraph for natural language tracing)
-15. reconciliation - Matches post-execution results and updates status (CrewAI + LangGraph hybrid for continuous learning)
-16. sla_auditor - Calculates actual vs expected SLA and records breaches (CrewAI for post-analysis with penalty rules)
- 
+10. dispatch - Sends payment to selected rail/bank API (FastAPI - synchronous, idempotent)
+11. fallback_mutator - OPTIONAL: Constructs next-best route/rail if dispatch fails (LangGraph for dynamic alternative routing)
+12. ledger_writer -  Persists system decision context to immutable ledger (Kafka → CockroachDB/S3 - no LLM)
+13. explainability -  Generates causality/trace for auditors from ledger + decisions (LangGraph for natural language tracing)
+14. reconciliation - OPTIONAL: Matches post-execution results and updates status (CrewAI + LangGraph hybrid for continuous learning)
+15. sla_auditor - Calculates actual vs expected SLA and records breaches (CrewAI for post-analysis with penalty rules)
+
 ### Data Sources:
-All agents fetch relevant data from CockroachDB tables including:
+All agents fetch relevant data from CockroachDB tables and process the transaction input including:
 - Transaction details and metadata
 - Agent outputs and intermediate results  
 - Intent definitions and business rules
 - SLA contracts and performance data
 - Historical routing decisions and outcomes
 - Fraud patterns and risk models
- 
+
 ### Global rules:
 - Always include validator and controller in every DAG
+- Include fraud_scorer, aml_agent, and kyc_verifier based on transaction risk factors
 - aml_agent and kyc_verifier must run AFTER validator (never before)
 - routing_planner must run AFTER zone_classifier and AFTER any SLA posture signals
 - controller must run AFTER all checks that influence execution (aml_agent, kyc_verifier, sla_guardian, routing_planner, fraud_scorer)
 - dispatch must run AFTER controller
-- On dispatch failure/timeout, fallback_mutator produces a new plan that goes BACK to dispatch
-- ledger_writer must run AFTER a dispatch attempt (success or after fallback path)
-- explainability, reconciliation, and sla_auditor typically run AFTER ledger_writer
-- Do NOT include agents that are irrelevant given the transaction context
- 
+- Agents 12-16 (fallback_mutator, ledger_writer, explainability, reconciliation, sla_auditor) are OPTIONAL - include only if relevant
+- On dispatch failure/timeout, include fallback_mutator which produces a new plan that goes BACK to dispatch
+- ledger_writer, explainability, reconciliation, and sla_auditor typically run AFTER dispatch or fallback completion
+- Do NOT include optional agents that are irrelevant given the transaction context
+
+### Mandatory vs Optional Agents:
+- MANDATORY CORE: edge_gateway, validator, controller, dispatch
+- CONDITIONAL: zone_classifier, confidence_scorer, routing_planner, fraud_scorer, aml_agent, kyc_verifier, sla_guardian (include based on transaction properties)
+- OPTIONAL: fallback_mutator, ledger_writer, explainability, reconciliation, sla_auditor (include only for specific use cases)
+
 ### Intent-aware & transaction-aware heuristics:
-- For "salary disbursement" or low-risk payouts with LOW priority: lean path but NEVER skip validator
-- If confidence_score < 0.60 OR fraud_score >= 0.50: include aml_agent and kyc_verifier before controller
+- For "salary disbursement" or low-risk payouts with LOW priority: lean path but NEVER skip core agents
+- If confidence_score < 0.60 OR fraud_score >= 0.50: include fraud_scorer, aml_agent and kyc_verifier before controller
 - If SLA contains HIGH/GOLD/FAST: include sla_guardian to inform routing_planner
-- If SLA is LOW/relaxed: sla_guardian may still be included for posture recording
-- routing_planner should not appear before zone_classifier
-- Human approval happens outside DAG; controller produces final plan for UI
- 
-### Risk-based agent inclusion:
-- High amount (>50,000): include fraud_scorer, aml_agent, kyc_verifier
-- New vendor/account: include enhanced validation and compliance checks
-- International transactions: include additional compliance layers
-- High priority: include sla_guardian for proactive SLA management
- 
+- If transaction amount > 50,000: include enhanced fraud and compliance checks
+- High priority transactions: include sla_guardian for proactive SLA management
+- Include optional agents only for complex transactions, audit requirements, or failure scenarios
+
 ### Output format (STRICT):
 Return ONLY a valid JSON object (no markdown, no commentary, no trailing commas). 
 Keys must be double-quoted. Edges must reference nodes you include. 
@@ -109,18 +110,17 @@ Structure:
   "nodes": ["agent_name_1", "agent_name_2", "..."],
   "edges": [["from_agent", "to_agent"], ["from_agent2", "to_agent3"], "..."]
 }}
- 
+
 ### Output Instructions (STRICT):
 {format_instructions}
- 
+
 ### Inputs:
 Intent: {intent}
- 
+
 Transaction JSON:
 {txn}
     """
 )
-    
     # The chain now pipes the prompt to the LLM, and then the LLM's output to the JSON parser.
     chain = prompt | llm | parser
     

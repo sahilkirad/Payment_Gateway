@@ -18,4 +18,4 @@ sqlalchemy-cockroachdb
 python-dotenv
 pandas
 psycopg2-binary
-
+openai
