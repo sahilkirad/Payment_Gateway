@@ -1,8 +1,8 @@
 # confidence_scorer/main.py
 
 import ray
-from .features import extract_features
-from .scorer import llm_confidence_scorer
+from agents.confidence_scorer.features import extract_features
+from agents.confidence_scorer.scorer import llm_confidence_scorer
 
 @ray.remote
 def run(transaction: dict) -> dict:

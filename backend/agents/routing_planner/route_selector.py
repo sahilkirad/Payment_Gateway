@@ -2,8 +2,12 @@
 
 import json
 from langgraph.graph import StateGraph, END
-from .config import PlannerState
-from .fallback_precompute import (
+from agents.routing_planner.config import PlannerState
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from agents.routing_planner.fallback_precompute import (
     generate_routes,
     llm_confidence_batch,
     llm_deliberate_weights,

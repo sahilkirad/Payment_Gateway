@@ -1,8 +1,8 @@
 # backend/agents/zone_classifier/main.py
 import ray
 import asyncio
-from backend.data_services import CockroachDBClient
-from backend.agents.zone_classifier.bank_affinity import get_zone
+from data_services.cockroach_client import CockroachDBClient
+from agents.zone_classifier.bank_affinity import get_zone
 
 async def core_logic(transaction: dict) -> dict:
     print("▶️ Running Zone Classifier Agent...")
@@ -19,7 +19,9 @@ async def core_logic(transaction: dict) -> dict:
 @ray.remote
 def run(transaction: dict) -> dict:
     async def _inner():
+        print("Zone Incoming Transaction: ", transaction)
         db = CockroachDBClient()
+        await db.connect()
         result = await core_logic(transaction)
         if result["status"] == "success":
             await db.save_agent_result("zone_classifier", result["txn_id"], result)

@@ -14,9 +14,9 @@ class CockroachDBClient:
         if self._pool: return
         try:
             conn_str = (
-                f"postgresql://{os.getenv('DB_USER', 'root')}:"
-                f"{os.getenv('DB_PASSWORD', '')}@"
-                f"{os.getenv('DB_HOST', 'localhost')}:"
+                f"postgresql://{os.getenv('DB_USER', 'sahil')}:"
+                f"{os.getenv('DB_PASSWORD', '6So4-7R_fyZu4RFGoUphZw')}@"
+                f"{os.getenv('DB_HOST', 'newer-cuscus-14747.j77.aws-us-east-1.cockroachlabs.cloud')}:"
                 f"{os.getenv('DB_PORT', '26257')}/"
                 f"{os.getenv('DB_NAME', 'arealis_db')}"
             )
@@ -69,5 +69,24 @@ class CockroachDBClient:
             logger.info(f"✅ Successfully upserted record for txn_id: {txn_id}")
         except Exception as e:
             logger.error(f"❌ Failed to upsert record for {txn_id}: {e}")
+    
+    async def save_agent_result(self, agent_name: str, txn_id: str, result: dict):
+        if not self._pool:
+            raise ConnectionError("Database pool is not initialized. Call connect() first.")
+
+        query = """
+        INSERT INTO agent_results (txn_id, agent, result_json, created_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (txn_id, agent) DO UPDATE SET
+            result_json = EXCLUDED.result_json,
+            created_at = NOW();
+        """
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute(query, txn_id, agent_name, json.dumps(result))
+            logger.info(f"✅ Saved agent result for {agent_name} on txn_id {txn_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to save agent result for {agent_name}, txn_id={txn_id}: {e}")
+
 
 db_client = CockroachDBClient() 

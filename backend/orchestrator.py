@@ -4,13 +4,13 @@ from typing import Dict, Any, List
 
 # Your AGENT_FUNCTION_MAP is correct for your file structure.
 AGENT_FUNCTION_MAP = {
-    "edge_gateway": "backend.agents.edge_gateway.main.run",
+    "edge_gateway": "agents.edge_gateway.main.run",
     "validator": "backend.agents.validator.main.run",
     "aml_agent": "backend.agents.aml_agent.main.run",
     "kyc_verifier": "backend.agents.kyc_verifier.main.run",
-    "zone_classifier": "backend.agents.zone_classifier.main.run",
-    "routing_planner": "backend.agents.routing_planner.main.run",
-    "confidence_scorer": "backend.agents.confidence_scorer.main.run",
+    "zone_classifier": "agents.zone_classifier.main.run",
+    "routing_planner": "agents.routing_planner.main.run",
+    "confidence_scorer": "agents.confidence_scorer.main.run",
     "fraud_scorer": "backend.agents.fraud_scorer.main.run",
     "sla_guardian": "backend.agents.sla_guardian.main.run",
     "dispatch": "backend.agents.dispatch.main.run",
@@ -83,3 +83,34 @@ def _launch_task(agent_name: str, transaction: dict, dep_refs: List[ray.ObjectRe
         error_msg = f"Error launching agent '{agent_name}': {e}"
         print(f"🔥 {error_msg}")
         return ray.put({"status": "error", "reason": error_msg})
+    
+dag = {
+  "nodes": [
+    "edge_gateway",
+    "zone_classifier",
+    "confidence_scorer",
+    "routing_planner",
+    "controller"
+  ],
+  "edges": [
+    [
+      "edge_gateway",
+      "zone_classifier"
+    ],
+    [
+      "edge_gateway",
+      "confidence_scorer"
+    ],
+    [
+      "zone_classifier",
+      "routing_planner"
+    ],
+    [
+      "confidence_scorer",
+      "routing_planner"
+    ]
+  ]
+}
+
+t = {'txn_id': 'TXN-175E84A084', 'amount': 42289.73, 'account': 'GB73MWSJ79406171080992', 'ifsc': 'HDFC0000001', 'vendor_id': 'VND6672', 'sla_id': 'SLA-MEDIUM-720', 'kyc_hash': 'kyc_06e6e888859c48959c4ebdffbc116660', 'consent_hash': 'consent_d9af258775234b8baacb5fd3a75d2fad', 'timestamp': '2025-08-11T10:34:36.495924Z', 'priority': 'MEDIUM', 'aadhaar_hash': 'aadhaar_38700e0275364954ae43b5b50e510f52', 'gstin': '18AAAAA8697v9Z3', 'routing_hints': 'FAST_ROUTE', 'source_app': 'payment_gateway', 'fraud_score': 0.0827, 'confidence_score': 0.736, 'intent': 'Vendor Payment'}
+print(execute_dag(dag, t))

@@ -48,71 +48,49 @@ def analyze_and_decide(state: RoutingState) -> dict:
 You are an orchestration planner for a Payment Routing Gateway. 
 Your task is to produce ONLY a valid JSON object that defines the execution DAG for the given transaction.
 
-### Allowed agents (use only these names):
-{allowed}
+### Active Agents (only use these names):
+- edge_gateway
+- zone_classifier
+- confidence_scorer
+- routing_planner
 
-### Agent Details & Implementation (All agents take transaction data as input):
-1. edge_gateway - API entry point, normalizes payload into internal txn_master (FastAPI - synchronous)
-2. zone_classifier - Classifies zone/region/rail preference using account/IFSC/routing_hints (LangGraph for dynamic mapping)
-3. confidence_scorer - Continuous scoring based on routing stats and SLA (LangGraph for parallel scoring tools)
-4. routing_planner - Selects optimal payment rail/bank based on scores, fees, hints, SLA (LangGraph for multi-factor optimization)
-5. validator - Basic schema/sanity/consent/format checks; gates downstream risk/compliance (FastAPI - deterministic)
-6. fraud_scorer - ML inference for fraud probability (FastAPI + ML model - latency-sensitive)
-7. aml_agent - Anti-Money Laundering checks against sanction lists (CrewAI for rule + knowledge base reasoning)
-8. kyc_verifier - Validates KYC/KYB records/consent hashes (FastAPI - deterministic API integration)
-9. sla_guardian - Evaluates SLA contract posture and predicts breach risk (LangGraph for predictive rerouting logic)
-10. dispatch - Sends payment to selected rail/bank API (FastAPI - synchronous, idempotent)
-11. fallback_mutator - OPTIONAL: Constructs next-best route/rail if dispatch fails (LangGraph for dynamic alternative routing)
-12. ledger_writer -  Persists system decision context to immutable ledger (Kafka → CockroachDB/S3 - no LLM)
-13. explainability -  Generates causality/trace for auditors from ledger + decisions (LangGraph for natural language tracing)
-14. reconciliation - OPTIONAL: Matches post-execution results and updates status (CrewAI + LangGraph hybrid for continuous learning)
-15. sla_auditor - Calculates actual vs expected SLA and records breaches (CrewAI for post-analysis with penalty rules)
+### Agent Roles & Dependencies:
+1. edge_gateway
+   - Input: API request headers + transaction body
+   - Output: normalized_batch (txn_master)
+   - ALL other agents depend on its normalized output (must always run first)
 
-### Data Sources:
-All agents fetch relevant data from CockroachDB tables and process the transaction input including:
-- Transaction details and metadata
-- Agent outputs and intermediate results  
-- Intent definitions and business rules
-- SLA contracts and performance data
-- Historical routing decisions and outcomes
-- Fraud patterns and risk models
+2. zone_classifier
+   - Input: normalized transaction from edge_gateway
+   - Output: {{ "zone": <region> }}
+   - Used by routing_planner for geographic/scheme preferences
 
-### Global rules:
-- Always include validator and controller in every DAG
-- Include fraud_scorer, aml_agent, and kyc_verifier based on transaction risk factors
-- aml_agent and kyc_verifier must run AFTER validator (never before)
-- routing_planner must run AFTER zone_classifier and AFTER any SLA posture signals
-- controller must run AFTER all checks that influence execution (aml_agent, kyc_verifier, sla_guardian, routing_planner, fraud_scorer)
-- dispatch must run AFTER controller
-- Agents 12-16 (fallback_mutator, ledger_writer, explainability, reconciliation, sla_auditor) are OPTIONAL - include only if relevant
-- On dispatch failure/timeout, include fallback_mutator which produces a new plan that goes BACK to dispatch
-- ledger_writer, explainability, reconciliation, and sla_auditor typically run AFTER dispatch or fallback completion
-- Do NOT include optional agents that are irrelevant given the transaction context
+3. confidence_scorer
+   - Input: normalized transaction from edge_gateway
+   - Output: confidence_scores for routes
+   - Runs in parallel to zone_classifier since both consume the normalized transaction
+   - Its scores must be passed into routing_planner
 
-### Mandatory vs Optional Agents:
-- MANDATORY CORE: edge_gateway, validator, controller, dispatch
-- CONDITIONAL: zone_classifier, confidence_scorer, routing_planner, fraud_scorer, aml_agent, kyc_verifier, sla_guardian (include based on transaction properties)
-- OPTIONAL: fallback_mutator, ledger_writer, explainability, reconciliation, sla_auditor (include only for specific use cases)
+4. routing_planner
+   - Input: 
+       - normalized transaction (edge_gateway)
+       - zone (zone_classifier)
+       - confidence_scores (confidence_scorer)
+   - Output: selected route, ranking, rationale
+   - Must run AFTER both zone_classifier and confidence_scorer complete
 
-### Intent-aware & transaction-aware heuristics:
-- For "salary disbursement" or low-risk payouts with LOW priority: lean path but NEVER skip core agents
-- If confidence_score < 0.60 OR fraud_score >= 0.50: include fraud_scorer, aml_agent and kyc_verifier before controller
-- If SLA contains HIGH/GOLD/FAST: include sla_guardian to inform routing_planner
-- If transaction amount > 50,000: include enhanced fraud and compliance checks
-- High priority transactions: include sla_guardian for proactive SLA management
-- Include optional agents only for complex transactions, audit requirements, or failure scenarios
+### DAG Rules:
+- Always start with edge_gateway
+- zone_classifier and confidence_scorer run IN PARALLEL (after edge_gateway)
+- routing_planner runs AFTER both zone_classifier and confidence_scorer
+- Only include these 4 agents in the DAG (do not add others)
+- Return ONLY valid JSON in the format below (STRICT, no extra text, no markdown)
 
-### Output format (STRICT):
-Return ONLY a valid JSON object (no markdown, no commentary, no trailing commas). 
-Keys must be double-quoted. Edges must reference nodes you include. 
-Structure:
+### Output JSON Format:
 {{
-  "nodes": ["agent_name_1", "agent_name_2", "..."],
-  "edges": [["from_agent", "to_agent"], ["from_agent2", "to_agent3"], "..."]
+  "nodes": ["agent1", "agent2", ...],
+  "edges": [["from_agent", "to_agent"], ...]
 }}
-
-### Output Instructions (STRICT):
-{format_instructions}
 
 ### Inputs:
 Intent: {intent}
@@ -121,6 +99,7 @@ Transaction JSON:
 {txn}
     """
 )
+
     # The chain now pipes the prompt to the LLM, and then the LLM's output to the JSON parser.
     chain = prompt | llm | parser
     

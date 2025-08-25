@@ -1,17 +1,18 @@
 # backend/agents/edge_gateway/edge_gateway.py
 import ray
 import asyncio
-from backend.data_services import CockroachDBClient
-from backend.agents.edge_gateway.auth import validate_auth
-from backend.agents.edge_gateway.rate_limiter import check_rate_limit
-from backend.agents.edge_gateway.enrich import enrich_payouts
-from backend.agents.edge_gateway.config import GATEWAY_CONFIG
+from data_services.cockroach_client import CockroachDBClient
+from agents.edge_gateway.auth import validate_auth
+from agents.edge_gateway.rate_limiter import check_rate_limit
+from agents.edge_gateway.enrich import enrich_payouts
+from agents.edge_gateway.config import GATEWAY_CONFIG
 
 async def core_logic(request: dict) -> dict:
     print("▶️ Running Edge Gateway Agent...")
+    print(request)
 
     headers = request.get("headers", {})
-    payouts = request.get("body", [])
+    payouts = request.get("body", [request])
 
     merchant_id = headers.get("x-merchant-id", "default")
 
@@ -34,9 +35,11 @@ async def core_logic(request: dict) -> dict:
 def run(request: dict) -> dict:
     async def _inner():
         db = CockroachDBClient()
+        await db.connect()
         result = await core_logic(request)
         if result["status"] == "success":
             for txn in result["normalized_batch"]:
                 await db.save_agent_result("edge_gateway", txn["txn_id"], txn)
-        return result
+        
+        return result["normalized_batch"][0]
     return asyncio.run(_inner())

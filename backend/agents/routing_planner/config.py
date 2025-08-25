@@ -3,6 +3,8 @@
 import os
 from typing import Dict, Any, List
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+load_dotenv()
 
 # Load OPENAI key
 _USE_LLM = bool(os.getenv("OPENAI_API_KEY"))

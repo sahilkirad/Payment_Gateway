@@ -3,7 +3,11 @@
 import json, random
 from typing import List, Tuple, Dict, Any
 
-from .config import BANKS, Route, TxnContext, _USE_LLM
+from dotenv import load_dotenv
+load_dotenv()
+
+# from backend.agents.routing_planner.config import BANKS, Route, TxnContext, _USE_LLM
+from agents.routing_planner.config import BANKS, Route, TxnContext, _USE_LLM
 
 if _USE_LLM:
     from langchain_openai import ChatOpenAI
@@ -55,17 +59,27 @@ def llm_confidence_batch(routes: List[Route]) -> List[Tuple[float, str]]:
     if not _USE_LLM:
         return [(rule_confidence(r), "rule") for r in routes]
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-    routes_dict = [r.model_dump() for r in routes]
-    prompt = (
-        "You are a routing reliability scorer. For each route JSON, output JSON array:\n"
-        '{"bank_id": "...", "confidence_score": 0..1, "rationale": "..."}\n'
-        f"ROUTES:\n{json.dumps(routes_dict)}"
-    )
-    msg = [{"role": "system", "content": prompt}]
     try:
-        out = llm.invoke(msg).content.strip()
-        parsed = json.loads(out)
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        routes_dict = [r.model_dump() for r in routes]
+        prompt = (
+            "You are a routing reliability scorer. For each route JSON, output JSON array:\n"
+            '{"bank_id": "...", "confidence_score": 0..1, "rationale": "..."}\n'
+            f"ROUTES:\n{json.dumps(routes_dict)}"
+        )
+        msg = [{"role": "system", "content": prompt}]
+
+        try:
+            out = llm.invoke(msg).content.strip()
+        except Exception as e:
+            # Catch raw OpenAI exception here
+            return [(rule_confidence(r), f"llm_invoke_error:{str(e)}") for r in routes]
+
+        try:
+            parsed = json.loads(out)
+        except Exception as e:
+            return [(rule_confidence(r), f"llm_parse_error:{str(e)}") for r in routes]
+
         by_bank = {d["bank_id"]: d for d in parsed}
         result = []
         for r in routes:
@@ -78,7 +92,7 @@ def llm_confidence_batch(routes: List[Route]) -> List[Tuple[float, str]]:
             )
         return result
     except Exception as e:
-        return [(rule_confidence(r), f"llm_error:{e}") for r in routes]
+        return [(rule_confidence(r), f"llm_outer_error:{e}") for r in routes]
 
 
 # ------------------------
@@ -113,26 +127,34 @@ def llm_deliberate_weights(ctx: TxnContext, routes: List[Route], feedback: List[
         w = adapt_with_feedback(default_weights(ctx), feedback)
         return w, "Default heuristic weights (no LLM)."
 
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
-    prompt = (
-        "You are a routing planner. Decide weights for:\n"
-        "utility = w_conf*confidence - w_lat*latency_norm - w_fee*fee_norm - w_load*load_factor\n"
-        "Rules:\n- Increase w_lat if SLA_deadline is tight\n- Increase w_conf if risk_appetite is low\n"
-        "- Increase w_fee if fee_sensitivity is high\n"
-        "Return JSON: {\"weights\": {...}, \"rationale\":\"...\"}\n"
-        f"CTX: {ctx.model_dump()}\nFeedback: {feedback[-5:]}\n"
-    )
     try:
-        out = llm.invoke([{"role": "system", "content": prompt}]).content.strip()
-        parsed = json.loads(out)
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.2)
+        prompt = (
+            "You are a routing planner..."
+            f"CTX: {ctx.model_dump()}\nFeedback: {feedback[-5:]}\n"
+        )
+        try:
+            out = llm.invoke([{"role": "system", "content": prompt}]).content.strip()
+        except Exception as e:
+            w = adapt_with_feedback(default_weights(ctx), feedback)
+            return w, f"llm_invoke_error -> heuristic weights used: {e}"
+
+        try:
+            parsed = json.loads(out)
+        except Exception as e:
+            w = adapt_with_feedback(default_weights(ctx), feedback)
+            return w, f"llm_parse_error -> heuristic weights used: {e}"
+
         w = parsed.get("weights", {})
         if not all(k in w for k in ("confidence", "latency", "fee", "load")):
             raise ValueError("weights keys missing")
+
         s = sum(w.values()) or 1.0
         w = {k: float(v) / s for k, v in w.items()}
         w = adapt_with_feedback(w, feedback)
         why = parsed.get("rationale", "LLM deliberation")
         return w, why
+
     except Exception as e:
         w = adapt_with_feedback(default_weights(ctx), feedback)
-        return w, f"LLM error -> heuristic weights used: {e}"
+        return w, f"llm_outer_error -> heuristic weights used: {e}"

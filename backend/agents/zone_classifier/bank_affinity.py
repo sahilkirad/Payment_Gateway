@@ -1,5 +1,5 @@
 # backend/agents/zone_classifier/bank_affinity.py
-from backend.agents.zone_classifier.zone_mapping import IFSC_TO_ZONE, DEFAULT_ZONE
+from agents.zone_classifier.zone_mapping import IFSC_TO_ZONE, DEFAULT_ZONE
 
 def get_zone(ifsc: str) -> str:
     """Resolve IFSC prefix to a zone/affinity group."""

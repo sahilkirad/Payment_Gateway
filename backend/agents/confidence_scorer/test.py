@@ -1,5 +1,5 @@
 import ray
-from backend.agents.confidence_scorer.main import run
+from agents.confidence_scorer.main import run
 
 # 1. Start Ray
 ray.init()

@@ -1,5 +1,5 @@
 # test_zone_classifier.py
-from backend.agents.zone_classifier.bank_affinity import get_zone
+from agents.zone_classifier.bank_affinity import get_zone
 
 def test_zone_lookup():
     assert get_zone("HDFC000123") == "NATIONAL"
