@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 @ray.remote
-def run(transaction: dict, feedback: list = None):
+def run(transaction: dict, zone_result: dict = None, confidence_output: dict = None) -> dict:
     import json
     from agents.routing_planner.config import TxnContext, PlannerState
     from agents.routing_planner.route_selector import build_graph
@@ -35,7 +35,7 @@ def run(transaction: dict, feedback: list = None):
         }
     """
     print("▶️ Running Routing Planner Agent...")
-
+    feedback = [zone_result, confidence_output]
     try:
         if feedback is None:
             feedback = []

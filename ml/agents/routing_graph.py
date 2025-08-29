@@ -53,6 +53,7 @@ Your task is to produce ONLY a valid JSON object that defines the execution DAG 
 - zone_classifier
 - confidence_scorer
 - routing_planner
+- controller
 
 ### Agent Roles & Dependencies:
 1. edge_gateway
@@ -79,11 +80,19 @@ Your task is to produce ONLY a valid JSON object that defines the execution DAG 
    - Output: selected route, ranking, rationale
    - Must run AFTER both zone_classifier and confidence_scorer complete
 
+5. controller
+    - Input: 
+        - normalized transaction from edge_gateway
+        - final route decision from routing_planner
+    - Output: API response to client
+    - Must run last
+
 ### DAG Rules:
 - Always start with edge_gateway
 - zone_classifier and confidence_scorer run IN PARALLEL (after edge_gateway)
 - routing_planner runs AFTER both zone_classifier and confidence_scorer
-- Only include these 4 agents in the DAG (do not add others)
+- controller runs LAST at all times
+- Only include these 5 agents in the DAG (do not add others)
 - Return ONLY valid JSON in the format below (STRICT, no extra text, no markdown)
 
 ### Output JSON Format:

@@ -111,7 +111,8 @@ from sqlalchemy import create_engine
 import pandas as pd
 from dotenv import load_dotenv
 import json
-import asyncio
+
+from ray import dag
 
 from agents.routing_planner.main import run as routing_planner_run
 from agents.confidence_scorer.main import run as confidence_scorer_run
@@ -165,15 +166,19 @@ def controller(transaction, routing_output):
         "final_plan": routing_output
     }
 
+# Ray remote agents
+# edge_gateway_run = ray.remote(edge_gateway_run)
+# zone_classifier_run = ray.remote(zone_classifier_run)
+# confidence_scorer_run = ray.remote(confidence_scorer_run)
+# routing_planner_run = ray.remote(routing_planner_run)
+# controller_run = ray.remote(controller)
 
 # ======================
 # === DAG EXECUTOR ===
 # ======================
 async def execute_dag(decision_dag, transaction):
-    """Executes agents as per the generated DAG using Ray."""
-    node_outputs = {}
+    """Executes agents as per the generated DAG using Ray DAG API."""
 
-    # 1. Map agent names to Ray functions
     agent_map = {
         "edge_gateway": edge_gateway_run,
         "zone_classifier": zone_classifier_run,
@@ -182,57 +187,51 @@ async def execute_dag(decision_dag, transaction):
         "controller": controller
     }
 
-    # 2. Prepare execution ordering
     nodes = decision_dag["nodes"]
     edges = decision_dag["edges"]
-    dependencies = {n: [] for n in nodes}
 
+    # Step 1: Create placeholders for nodes
+    dag_nodes = {}
+
+    # Edge Gateway is always the root (takes transaction)
+    if "edge_gateway" in nodes:
+        dag_nodes["edge_gateway"] = agent_map["edge_gateway"].bind(transaction)
+
+    # Step 2: Wire dependencies
     for src, dst in edges:
-        dependencies[dst].append(src)
+        if dst not in agent_map:
+            print(f"⚠️ Unknown agent {dst}, skipping.")
+            continue
 
-    executed = set()
+        if dst == "zone_classifier":
+            dag_nodes[dst] = agent_map[dst].bind(dag_nodes[src])
+
+        elif dst == "confidence_scorer":
+            dag_nodes[dst] = agent_map[dst].bind(dag_nodes[src])
+
+        elif dst == "routing_planner":
+            # Routing planner needs transaction + results of zone+confidence
+            dag_nodes[dst] = agent_map[dst].bind(
+                transaction,
+                dag_nodes["zone_classifier"], dag_nodes["confidence_scorer"]
+            )
+
+        elif dst == "controller":
+            dag_nodes[dst] = agent_map[dst].bind(transaction, dag_nodes["routing_planner"])
+
+        else:
+            # Fallback generic dependency wiring
+            dag_nodes[dst] = agent_map[dst].bind(dag_nodes[src])
+
+    # Step 3: Compile & Execute DAG
+    final_node = dag_nodes.get("controller")
+    if not final_node:
+        raise RuntimeError("No controller node in DAG; invalid plan.")
+
+    # Collect intermediate results too
     results = {}
-
-    while len(executed) < len(nodes):
-        ready_nodes = [
-            n for n in nodes
-            if n not in executed and all(dep in executed for dep in dependencies[n])
-        ]
-
-        tasks = []
-
-        for node in ready_nodes:
-            agent_fn = agent_map[node]
-
-            # Prepare args based on dependencies
-            if node == "edge_gateway":
-                tasks.append((node, agent_fn.remote(transaction)))
-
-            elif node == "zone_classifier":
-                tasks.append((node, agent_fn.remote(results["edge_gateway"])))
-
-            elif node == "confidence_scorer":
-                tasks.append((node, agent_fn.remote(results["edge_gateway"])))
-
-            elif node == "routing_planner":
-                tasks.append((
-                    node,
-                    agent_fn.remote(transaction, [results["zone_classifier"], results["confidence_scorer"]])
-                ))
-
-            elif node == "controller":
-                tasks.append((node, agent_fn.remote(transaction, results["routing_planner"])))
-
-            else:
-                print(f"⚠️ Unknown agent {node}, skipping.")
-
-        if tasks:
-            resolved = ray.get([t[1] for t in tasks])
-
-            for (node, _), output in zip(tasks, resolved):
-                results[node] = output
-                executed.add(node)
-                print(f"✅ {node} completed → {output}")
+    for node, dag_node in dag_nodes.items():
+        results[node] = await dag_node.execute()
 
     return results
 
@@ -275,7 +274,7 @@ async def process_transaction(request: TransactionRequest):
 
         print(f"✅ DAG Generated: {json.dumps(decision_dag, indent=2)}")
 
-        # 3. Execute DAG with Ray
+        # 3. Execute DAG with Ray DAG
         results = await execute_dag(decision_dag, transaction_details)
 
         return {
