@@ -1,4 +1,3 @@
-# edge_gateway/db.py
 import asyncpg
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -106,6 +105,12 @@ class CockroachClient:
         """Bulk upsert transaction rows."""
         if not self._pool:
             raise RuntimeError("DB pool not initialized. Call connect() first.")
+
+        # Convert timestamp strings → datetime
+        for r in rows:
+            if isinstance(r.get("timestamp"), str):
+                r["timestamp"] = datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00"))
+
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 for r in rows:
@@ -118,8 +123,8 @@ class CockroachClient:
                         r["ifsc"],
                         r["amount"],
                         r["currency"],
-                        r["timestamp"],  # must be a datetime
-                        r.get("priority", "normal"),
+                        r["timestamp"],
+                        r.get("priority", "NORMAL"),
                         r.get("geo_state"),
                         r.get("kyc_hash"),
                         r.get("sla_target_sec", 60),

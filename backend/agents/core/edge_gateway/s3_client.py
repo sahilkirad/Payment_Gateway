@@ -1,5 +1,6 @@
 # edge_gateway/s3_client.py
 import json, uuid
+import boto3
 from typing import Any, Dict, List
 from .config import settings
 
@@ -23,3 +24,14 @@ def maybe_archive_raw(merchant_id: str, items: List[Dict[str, Any]]) -> str | No
         ContentType="application/json"
     )
     return f"s3://{settings.S3_BUCKET}/{key}"
+
+
+
+def fetch_transactions( s3_key: str = "transactions.json" ) -> List[Dict[str, Any]]:
+    """
+    Fetch transactions.json from S3 and return as a list of dicts
+    """
+    s3 = boto3.client("s3", region_name=settings.AWS_REGION)
+    obj = s3.get_object(Bucket=settings.S3_BUCKET, Key=s3_key)
+    data = obj["Body"].read().decode("utf-8")
+    return json.loads(data)
