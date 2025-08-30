@@ -4,6 +4,14 @@ import json
 import logging
 from typing import Dict, Any
 
+from dotenv import load_dotenv
+load_dotenv()
+print("DB_USER:", os.getenv("DB_USER"))
+print("DB_PASSWORD:", os.getenv("DB_PASSWORD"))
+print("DB_HOST:", os.getenv("DB_HOST"))
+print("DB_PORT:", os.getenv("DB_PORT"))
+print("DB_NAME:", os.getenv("DB_NAME"))
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -14,11 +22,11 @@ class CockroachDBClient:
         if self._pool: return
         try:
             conn_str = (
-                f"postgresql://{os.getenv('DB_USER', 'root')}:"
-                f"{os.getenv('DB_PASSWORD', '')}@"
-                f"{os.getenv('DB_HOST', 'localhost')}:"
-                f"{os.getenv('DB_PORT', '26257')}/"
-                f"{os.getenv('DB_NAME', 'arealis_db')}"
+                f"postgresql://{os.getenv('DB_USER')}:"
+                f"{os.getenv('DB_PASSWORD')}@"
+                f"{os.getenv('DB_HOST')}:"
+                f"{os.getenv('DB_PORT')}/"
+                f"{os.getenv('DB_NAME')}"
             )
             self._pool = await asyncpg.create_pool(dsn=conn_str, min_size=1, max_size=10)
             logger.info("✅ Successfully connected to CockroachDB and created connection pool.")

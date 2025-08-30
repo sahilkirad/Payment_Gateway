@@ -1,30 +1,37 @@
-from typing import Optional
+# edge_gateway/config.py
+import os
 from pydantic_settings import BaseSettings
+from dotenv import load_dotenv
 
+# Load .env file
+load_dotenv(dotenv_path="C:/Users/DELL/SALLMA/.env")
 class Settings(BaseSettings):
-    # API
+    # API settings
     API_TITLE: str = "Arealis Edge Gateway"
     API_VERSION: str = "v1"
-    API_KEYS: str = "devkey1,devkey2"  # comma-separated keys for quick start
+    API_KEYS: str = "devkey1,devkey2"
 
-    # CockroachDB (Postgres wire)
-    CRDB_DSN: Optional[str] = None  # Will be loaded from DATABASE_URL in .env
+    # CockroachDB / Postgres DSN (must be in .env)
+    CRDB_DSN: str
 
-    # S3 (optional)
-    S3_ENABLE: bool = False
-    S3_BUCKET: str = "sallma"
-    AWS_REGION: str = "ap-south-1"
-    S3_ENDPOINT_URL: Optional[str] = None
-
+        # S3 (optional)
+    S3_ENABLE: bool = os.getenv("S3_ENABLE", "false").lower() == "true"
+    S3_BUCKET: str = os.getenv("S3_BUCKET", "sallma")
+    AWS_REGION: str = os.getenv("AWS_REGION", "ap-south-1")
+    S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL")
+   
     # Feature flags
-    ARCHIVE_RAW_TO_S3: bool = False
-
+    ARCHIVE_RAW_TO_S3: bool = os.getenv("ARCHIVE_RAW_TO_S3", "false").lower() == "true"
+ 
     # Rate limiting
     RATE_LIMIT_WINDOW_SEC: int = 60
     RATE_LIMIT_MAX_REQ: int = 120
 
     class Config:
-        case_sensitive = True
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()
+
+if __name__ == "__main__":
+    print(">>> DSN:", settings.CRDB_DSN)
